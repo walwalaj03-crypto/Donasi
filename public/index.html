@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>Donasi Untuk Beli HP</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--card:#141f32;--muted:#9aa9bf;--green:#35d39a;--line:#26364e}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0,#1c3450 0,var(--bg) 55%);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#f4f7fb;display:grid;place-items:center;padding:24px}
+main{width:min(100%,520px)}.card{background:linear-gradient(155deg,#18263b,#111a2a);border:1px solid var(--line);border-radius:25px;padding:28px;box-shadow:0 24px 80px #0007}
+.tag{display:inline-block;color:var(--green);background:#35d39a18;border:1px solid #35d39a55;border-radius:30px;padding:7px 12px;font-size:12px;font-weight:700;letter-spacing:.08em}
+h1{font-size:clamp(30px,8vw,42px);line-height:1.08;margin:18px 0 10px;letter-spacing:-1.5px}p{color:var(--muted);line-height:1.6;margin:0}
+.goalrow{display:flex;justify-content:space-between;gap:12px;margin:28px 0 10px;font-size:13px;color:var(--muted)}.goalrow strong{color:white}
+.track{height:13px;background:#26364e;border-radius:20px;overflow:hidden}.fill{height:100%;width:0;background:linear-gradient(90deg,#24b981,#75edbd);border-radius:20px;transition:width .5s}
+.amountline{display:flex;justify-content:space-between;margin-top:12px;font-size:13px;color:var(--muted)}.amountline b{color:var(--green);font-size:15px}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+label{display:block;font-size:14px;font-weight:650;margin-bottom:9px}input{width:100%;padding:16px;border:1px solid #344761;background:#0c1524;color:white;border-radius:13px;font-size:18px;outline:none}input:focus{border-color:var(--green)}
+button{width:100%;padding:16px;border:0;border-radius:13px;background:var(--green);color:#082217;font-size:16px;font-weight:800;margin-top:13px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+.note{font-size:12px;margin-top:12px}.status{margin-top:15px;font-size:13px;color:#f7cf7b;min-height:20px}
+#payment{display:none;text-align:center;margin-top:22px;padding:18px;background:#0c1524;border:1px solid var(--line);border-radius:16px}#qr{width:min(100%,260px);background:white;padding:10px;border-radius:12px;margin:12px auto;display:block}#paylink{color:var(--green);word-break:break-all;font-size:13px}
+footer{text-align:center;color:#71829b;font-size:11px;margin:18px}
+</style></head>
+<body><main>
+<section class="card">
+<span class="tag">OPEN DONASI</span>
+<h1>DONASI UNTUK<br>BELI HP</h1>
+<p>Bantu wujudkan target membeli HP baru. Berapa pun donasimu sangat berarti. Terima kasih sudah mendukung!</p>
+<div class="goalrow"><span>DONASI TERKUMPUL</span><strong id="collected">Rp0</strong></div>
+<div class="track"><div class="fill" id="bar"></div></div>
+<div class="amountline"><span>0%</span><b id="percent">0%</b><span>GOAL <b id="goal">Rp2.700.000</b></span></div>
+<hr>
+<form id="form">
+<label for="amount">Nominal donasi (Rp)</label>
+<input id="amount" type="number" min="1000" max="100000000" step="1000" placeholder="Contoh: 10000" required>
+<button id="submit" type="submit">BUAT QRIS DONASI</button>
+</form>
+<div class="status" id="message" role="status"></div>
+<div id="payment">
+<strong>Scan QRIS untuk berdonasi</strong>
+<p id="payamount" style="margin-top:6px"></p>
+<img id="qr" alt="QRIS pembayaran" hidden>
+<a id="paylink" target="_blank" rel="noopener"></a>
+<p class="note">Status pembayaran akan diperiksa otomatis setiap 22 detik. Jangan tutup halaman sebelum pembayaran terkonfirmasi.</p>
+</div>
+</section><footer>Donasi aman melalui QRIS • Terima kasih atas kebaikanmu</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const money=n=>'Rp'+Number(n||0).toLocaleString('id-ID');
+async function refresh(){try{const r=await fetch('/api/summary');const d=await r.json();$('collected').textContent=money(d.collected);$('goal').textContent=money(d.goal);$('percent').textContent=d.percent+'%';$('bar').style.width=d.percent+'%'}catch{}}
+let timer=null;
+$('form').addEventListener('submit',async e=>{
+ e.preventDefault();const amount=Number($('amount').value);if(!Number.isSafeInteger(amount)||amount<1000){$('message').textContent='Minimal donasi Rp1.000.';return}
+ $('submit').disabled=true;$('message').textContent='Sedang membuat QRIS...';$('payment').style.display='none';clearInterval(timer);
+ try{
+  const r=await fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal membuat QRIS.');
+  $('payamount').textContent='Nominal: '+money(d.total_amount);
+  const qr=$('qr');if(d.qr_url||d.qris_image){qr.src=d.qr_url||d.qris_image;qr.hidden=false}else qr.hidden=true;
+  const link=$('paylink');if(d.payment_url){link.href=d.payment_url;link.textContent='Buka halaman pembayaran'}else link.textContent='';
+  $('payment').style.display='block';$('message').textContent='QRIS berhasil dibuat. Silakan lakukan pembayaran.';
+  const check=async()=>{try{const sr=await fetch('/api/status/'+encodeURIComponent(d.transaction_id));const s=await sr.json();if(sr.ok){if(s.status==='success'){$('message').textContent='Pembayaran berhasil! Terima kasih banyak ❤️';clearInterval(timer);refresh()}else if(s.status==='expired'||s.status==='failed'){$('message').textContent='Transaksi '+s.status+'. Silakan buat QRIS baru.';clearInterval(timer)}}}catch{}};
+  timer=setInterval(check,22000);
+ }catch(err){$('message').textContent=err.message}
+ finally{$('submit').disabled=false}
+});
+refresh();
+</script></body></html>
